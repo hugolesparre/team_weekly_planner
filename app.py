@@ -1,7 +1,185 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from io import BytesIO
+
+try:
+    from fpdf import FPDF
+    FPDF_AVAILABLE = True
+except ImportError:
+    FPDF_AVAILABLE = False
+
+
+def get_week_dates(year, week_num):
+    """Get start and end date for a given ISO week number."""
+    jan4 = datetime(year, 1, 4)
+    start_of_week1 = jan4 - timedelta(days=jan4.isoweekday() - 1)
+    start_date = start_of_week1 + timedelta(weeks=week_num - 1)
+    end_date = start_date + timedelta(days=4)  # Monday to Friday
+    return start_date, end_date
+
+
+def get_status_color_rgb(status):
+    """Return RGB tuple for status color."""
+    colors = {
+        "To be started": (204, 0, 0),      # Red
+        "In progress": (184, 134, 11),     # Dark yellow/gold
+        "Done": (34, 139, 34)              # Green
+    }
+    return colors.get(status, (0, 0, 0))
+
+
+def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, progress_pct):
+    """Generate PDF report for a given week."""
+    DATA_DIR = Path(__file__).parent / "data"
+    TASKS_FILE = DATA_DIR / "weekly_tasks.csv"
+    SUPPORT_FILE = DATA_DIR / "daily_support.csv"
+    ON_HOLD_FILE = DATA_DIR / "on_hold.csv"
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    # Title
+    pdf.set_font("Arial", "B", 20)
+    pdf.cell(0, 15, f"2026 Weekly Planner - Week {week_num}", ln=True, align="C")
+    pdf.ln(5)
+
+    # Team Section
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Team", ln=True)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 8, "My team name", ln=True)
+    pdf.cell(0, 8, f"Members: {', '.join(team_members)}", ln=True)
+    pdf.ln(5)
+
+    # Year Progress Section
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Year Progress", ln=True)
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 8, f"Days Passed: {days_passed} | Days Remaining: {days_remaining} | Progress: {progress_pct:.1f}%", ln=True)
+
+    # Draw progress bar
+    bar_width = 170
+    bar_height = 8
+    x_start = pdf.get_x()
+    y_start = pdf.get_y() + 2
+    filled_width = bar_width * (progress_pct / 100)
+    pdf.set_fill_color(200, 200, 200)
+    pdf.rect(x_start, y_start, bar_width, bar_height, "F")
+    pdf.set_fill_color(30, 136, 229)
+    pdf.rect(x_start, y_start, filled_width, bar_height, "F")
+    pdf.ln(15)
+
+    # Tasks Section
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, f"Week {week_num} Tasks", ln=True)
+
+    if TASKS_FILE.exists():
+        tasks_df = pd.read_csv(TASKS_FILE)
+        week_tasks = tasks_df[tasks_df["week"] == week_num].sort_values("team_member")
+
+        if not week_tasks.empty:
+            pdf.set_font("Arial", "B", 10)
+            col_widths = [35, 30, 75, 30]
+            headers = ["Team Member", "Label", "Description", "Status"]
+            for i, header in enumerate(headers):
+                pdf.cell(col_widths[i], 8, header, 1, 0, "C")
+            pdf.ln()
+
+            pdf.set_font("Arial", "", 9)
+            for _, row in week_tasks.iterrows():
+                pdf.cell(col_widths[0], 7, str(row["team_member"])[:20], 1, 0)
+                pdf.cell(col_widths[1], 7, str(row["label"])[:18], 1, 0)
+                desc = str(row["description"])[:45] + "..." if len(str(row["description"])) > 45 else str(row["description"])
+                pdf.cell(col_widths[2], 7, desc, 1, 0)
+                # Set status color
+                r, g, b = get_status_color_rgb(row["status"])
+                pdf.set_text_color(r, g, b)
+                pdf.cell(col_widths[3], 7, str(row["status"]), 1, 0)
+                pdf.set_text_color(0, 0, 0)  # Reset to black
+                pdf.ln()
+        else:
+            pdf.set_font("Arial", "I", 10)
+            pdf.cell(0, 8, "No tasks for this week.", ln=True)
+    else:
+        pdf.set_font("Arial", "I", 10)
+        pdf.cell(0, 8, "No tasks file found.", ln=True)
+
+    pdf.ln(5)
+
+    # Support Section
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, f"Week {week_num} Support Schedule", ln=True)
+
+    if SUPPORT_FILE.exists():
+        support_df = pd.read_csv(SUPPORT_FILE)
+        support_df["date"] = pd.to_datetime(support_df["date"])
+
+        start_date, end_date = get_week_dates(2026, week_num)
+        week_support = support_df[(support_df["date"] >= start_date) & (support_df["date"] <= end_date)]
+
+        if not week_support.empty:
+            pdf.set_font("Arial", "B", 10)
+            col_widths = [40, 65, 65]
+            headers = ["Date", "Primary", "Secondary"]
+            for i, header in enumerate(headers):
+                pdf.cell(col_widths[i], 8, header, 1, 0, "C")
+            pdf.ln()
+
+            pdf.set_font("Arial", "", 9)
+            for _, row in week_support.iterrows():
+                pdf.cell(col_widths[0], 7, row["date"].strftime("%a %Y-%m-%d"), 1, 0)
+                pdf.cell(col_widths[1], 7, str(row["primary_support"]) if pd.notna(row["primary_support"]) else "", 1, 0)
+                pdf.cell(col_widths[2], 7, str(row["secondary_support"]) if pd.notna(row["secondary_support"]) else "", 1, 0)
+                pdf.ln()
+        else:
+            pdf.set_font("Arial", "I", 10)
+            pdf.cell(0, 8, "No support schedule for this week.", ln=True)
+    else:
+        pdf.set_font("Arial", "I", 10)
+        pdf.cell(0, 8, "No support file found.", ln=True)
+
+    pdf.ln(5)
+
+    # On Hold Section
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Projects On Hold", ln=True)
+
+    if ON_HOLD_FILE.exists():
+        on_hold_df = pd.read_csv(ON_HOLD_FILE)
+
+        if not on_hold_df.empty:
+            pdf.set_font("Arial", "B", 10)
+            col_widths = [35, 30, 75, 30]
+            headers = ["Team Member", "Label", "Description", "Status"]
+            for i, header in enumerate(headers):
+                pdf.cell(col_widths[i], 8, header, 1, 0, "C")
+            pdf.ln()
+
+            pdf.set_font("Arial", "", 9)
+            for _, row in on_hold_df.iterrows():
+                pdf.cell(col_widths[0], 7, str(row["team_member"])[:20], 1, 0)
+                pdf.cell(col_widths[1], 7, str(row["label"])[:18], 1, 0)
+                desc = str(row["description"])[:45] + "..." if len(str(row["description"])) > 45 else str(row["description"])
+                pdf.cell(col_widths[2], 7, desc, 1, 0)
+                # Set status color
+                r, g, b = get_status_color_rgb(row["status"])
+                pdf.set_text_color(r, g, b)
+                pdf.cell(col_widths[3], 7, str(row["status"]), 1, 0)
+                pdf.set_text_color(0, 0, 0)  # Reset to black
+                pdf.ln()
+        else:
+            pdf.set_font("Arial", "I", 10)
+            pdf.cell(0, 8, "No projects on hold.", ln=True)
+    else:
+        pdf.set_font("Arial", "I", 10)
+        pdf.cell(0, 8, "No on-hold file found.", ln=True)
+
+    # Return PDF as bytes
+    return bytes(pdf.output())
+
 
 # Page configuration
 st.set_page_config(
@@ -297,3 +475,35 @@ if existing_weeks:
             page_file.unlink()
             st.success(f"Week {week_to_delete} page deleted! Refresh to update sidebar.")
             st.experimental_rerun()
+
+st.markdown("---")
+
+# Generate Weekly Report PDF
+st.header("📄 Generate Weekly Report")
+
+if not FPDF_AVAILABLE:
+    st.error("PDF generation requires fpdf2. Install it with: pip install fpdf2")
+else:
+    if existing_weeks:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            report_week = st.selectbox("Select week for report", options=existing_weeks, format_func=lambda x: f"Week {x}", key="report_week")
+        with col2:
+            st.write("")
+            st.write("")
+            if st.button("📄 Generate PDF"):
+                pdf_bytes = generate_weekly_pdf(
+                    week_num=report_week,
+                    team_members=team_members,
+                    days_passed=days_passed,
+                    days_remaining=days_remaining,
+                    progress_pct=progress_percentage
+                )
+                st.download_button(
+                    label="⬇️ Download PDF",
+                    data=pdf_bytes,
+                    file_name=f"weekly_report_week_{report_week}.pdf",
+                    mime="application/pdf"
+                )
+    else:
+        st.info("Create a week page first to generate a report.")

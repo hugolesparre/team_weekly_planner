@@ -89,25 +89,38 @@ def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, pro
         week_tasks = tasks_df[tasks_df["week"] == week_num].sort_values(["team_member", "label"])
 
         if not week_tasks.empty:
-            pdf.set_font("Arial", "B", 10)
-            col_widths = [35, 30, 75, 30]
-            headers = ["Team Member", "Label", "Description", "Status"]
-            for i, header in enumerate(headers):
-                pdf.cell(col_widths[i], 8, header, 1, 0, "C")
-            pdf.ln()
+            # Group tasks by team member
+            col_widths = [40, 90, 40]
+            headers = ["Label", "Description", "Status"]
 
-            pdf.set_font("Arial", "", 9)
-            for _, row in week_tasks.iterrows():
-                pdf.cell(col_widths[0], 7, str(row["team_member"])[:20], 1, 0)
-                pdf.cell(col_widths[1], 7, str(row["label"])[:18], 1, 0)
-                desc = str(row["description"])[:45] + "..." if len(str(row["description"])) > 45 else str(row["description"])
-                pdf.cell(col_widths[2], 7, desc, 1, 0)
-                # Set status color
-                r, g, b = get_status_color_rgb(row["status"])
-                pdf.set_text_color(r, g, b)
-                pdf.cell(col_widths[3], 7, str(row["status"]), 1, 0)
-                pdf.set_text_color(0, 0, 0)  # Reset to black
+            for member in sorted(week_tasks["team_member"].unique()):
+                member_tasks = week_tasks[week_tasks["team_member"] == member]
+
+                # Team member name as sub-header
+                pdf.set_font("Arial", "B", 11)
+                pdf.set_fill_color(230, 230, 230)
+                pdf.cell(0, 8, member, ln=True, fill=True)
+
+                # Table header
+                pdf.set_font("Arial", "B", 9)
+                for i, header in enumerate(headers):
+                    pdf.cell(col_widths[i], 7, header, 1, 0, "C")
                 pdf.ln()
+
+                # Tasks rows
+                pdf.set_font("Arial", "", 9)
+                for _, row in member_tasks.iterrows():
+                    pdf.cell(col_widths[0], 7, str(row["label"])[:25], 1, 0)
+                    desc = str(row["description"])[:55] + "..." if len(str(row["description"])) > 55 else str(row["description"])
+                    pdf.cell(col_widths[1], 7, desc, 1, 0)
+                    # Set status color
+                    r, g, b = get_status_color_rgb(row["status"])
+                    pdf.set_text_color(r, g, b)
+                    pdf.cell(col_widths[2], 7, str(row["status"]), 1, 0)
+                    pdf.set_text_color(0, 0, 0)  # Reset to black
+                    pdf.ln()
+
+                pdf.ln(3)  # Space between team members
         else:
             pdf.set_font("Arial", "I", 10)
             pdf.cell(0, 8, "No tasks for this week.", ln=True)
@@ -115,7 +128,8 @@ def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, pro
         pdf.set_font("Arial", "I", 10)
         pdf.cell(0, 8, "No tasks file found.", ln=True)
 
-    pdf.ln(5)
+    # Start new page for Support Section
+    pdf.add_page()
 
     # Support Section
     pdf.set_font("Arial", "B", 14)
@@ -159,25 +173,38 @@ def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, pro
         on_hold_df = pd.read_csv(ON_HOLD_FILE)
 
         if not on_hold_df.empty:
-            pdf.set_font("Arial", "B", 10)
-            col_widths = [35, 30, 75, 30]
-            headers = ["Team Member", "Label", "Description", "Status"]
-            for i, header in enumerate(headers):
-                pdf.cell(col_widths[i], 8, header, 1, 0, "C")
-            pdf.ln()
+            on_hold_df = on_hold_df.sort_values(["team_member", "label"])
+            col_widths = [40, 90, 40]
+            headers = ["Label", "Description", "Status"]
 
-            pdf.set_font("Arial", "", 9)
-            for _, row in on_hold_df.iterrows():
-                pdf.cell(col_widths[0], 7, str(row["team_member"])[:20], 1, 0)
-                pdf.cell(col_widths[1], 7, str(row["label"])[:18], 1, 0)
-                desc = str(row["description"])[:45] + "..." if len(str(row["description"])) > 45 else str(row["description"])
-                pdf.cell(col_widths[2], 7, desc, 1, 0)
-                # Set status color
-                r, g, b = get_status_color_rgb(row["status"])
-                pdf.set_text_color(r, g, b)
-                pdf.cell(col_widths[3], 7, str(row["status"]), 1, 0)
-                pdf.set_text_color(0, 0, 0)  # Reset to black
+            for member in sorted(on_hold_df["team_member"].unique()):
+                member_tasks = on_hold_df[on_hold_df["team_member"] == member]
+
+                # Team member name as sub-header
+                pdf.set_font("Arial", "B", 11)
+                pdf.set_fill_color(230, 230, 230)
+                pdf.cell(0, 8, member, ln=True, fill=True)
+
+                # Table header
+                pdf.set_font("Arial", "B", 9)
+                for i, header in enumerate(headers):
+                    pdf.cell(col_widths[i], 7, header, 1, 0, "C")
                 pdf.ln()
+
+                # Tasks rows
+                pdf.set_font("Arial", "", 9)
+                for _, row in member_tasks.iterrows():
+                    pdf.cell(col_widths[0], 7, str(row["label"])[:25], 1, 0)
+                    desc = str(row["description"])[:55] + "..." if len(str(row["description"])) > 55 else str(row["description"])
+                    pdf.cell(col_widths[1], 7, desc, 1, 0)
+                    # Set status color
+                    r, g, b = get_status_color_rgb(row["status"])
+                    pdf.set_text_color(r, g, b)
+                    pdf.cell(col_widths[2], 7, str(row["status"]), 1, 0)
+                    pdf.set_text_color(0, 0, 0)  # Reset to black
+                    pdf.ln()
+
+                pdf.ln(3)  # Space between team members
         else:
             pdf.set_font("Arial", "I", 10)
             pdf.cell(0, 8, "No projects on hold.", ln=True)

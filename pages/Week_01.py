@@ -51,7 +51,7 @@ st.title(f"📅 Week {WEEK_NUM} Tasks")
 st.markdown("---")
 
 # Get tasks for this week
-week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].sort_values("team_member")
+week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].sort_values(["team_member", "label"])
 
 # Display tasks table with colored status
 st.subheader("📋 Tasks")

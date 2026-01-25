@@ -78,7 +78,7 @@ def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, pro
 
     if TASKS_FILE.exists():
         tasks_df = pd.read_csv(TASKS_FILE)
-        week_tasks = tasks_df[tasks_df["week"] == week_num].sort_values("team_member")
+        week_tasks = tasks_df[tasks_df["week"] == week_num].sort_values(["team_member", "label"])
 
         if not week_tasks.empty:
             pdf.set_font("Arial", "B", 10)
@@ -347,7 +347,7 @@ st.title(f"📅 Week {{WEEK_NUM}} Tasks")
 st.markdown("---")
 
 # Get tasks for this week
-week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].sort_values("team_member")
+week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].sort_values(["team_member", "label"])
 
 # Display tasks table with colored status
 st.subheader("📋 Tasks")

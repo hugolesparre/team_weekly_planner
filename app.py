@@ -12,10 +12,18 @@ except ImportError:
 
 
 def get_week_dates(year, week_num):
-    """Get start and end date for a given ISO week number."""
-    jan4 = datetime(year, 1, 4)
-    start_of_week1 = jan4 - timedelta(days=jan4.isoweekday() - 1)
-    start_date = start_of_week1 + timedelta(weeks=week_num - 1)
+    """Get start and end date for a given week number (week 1 = first Monday of the year)."""
+    # Find the first Monday of the year
+    jan1 = datetime(year, 1, 1)
+    days_until_monday = (7 - jan1.weekday()) % 7
+    if days_until_monday == 0 and jan1.weekday() != 0:
+        days_until_monday = 7
+    first_monday = jan1 + timedelta(days=days_until_monday)
+    if jan1.weekday() == 0:  # Jan 1 is already Monday
+        first_monday = jan1
+
+    # Calculate week start and end
+    start_date = first_monday + timedelta(weeks=week_num - 1)
     end_date = start_date + timedelta(days=4)  # Monday to Friday
     return start_date, end_date
 

@@ -40,13 +40,23 @@ st.markdown("---")
 # Get tasks for this week
 week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].copy()
 
+# Team member filter
+filter_options = ["All"] + team_members
+selected_member = st.selectbox("Filter by Team Member:", filter_options, key="member_filter")
+
+# Apply filter if not "All"
+if selected_member != "All":
+    filtered_tasks = week_tasks[week_tasks["team_member"] == selected_member].copy()
+else:
+    filtered_tasks = week_tasks.copy()
+
 # Display editable tasks table
 st.subheader("📋 Tasks")
 st.caption("Edit cells directly • Click ➕ to add rows • Select rows and press Delete to remove")
 
 # Prepare display dataframe
-if not week_tasks.empty:
-    display_df = week_tasks[["team_member", "label", "description", "status"]].copy()
+if not filtered_tasks.empty:
+    display_df = filtered_tasks[["team_member", "label", "description", "status"]].copy()
 else:
     display_df = pd.DataFrame(columns=["team_member", "label", "description", "status"])
 
@@ -90,8 +100,14 @@ st.markdown("---")
 
 # Save button
 if st.button("💾 Save Changes", type="primary"):
-    # Remove this week's tasks from all_tasks
-    other_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] != WEEK_NUM].copy()
+    # Remove tasks from other weeks
+    other_weeks_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] != WEEK_NUM].copy()
+
+    # If filtered, keep other members' tasks for this week
+    if selected_member != "All":
+        other_members_tasks = week_tasks[week_tasks["team_member"] != selected_member].copy()
+    else:
+        other_members_tasks = pd.DataFrame(columns=["id", "week", "team_member", "label", "description", "status"])
 
     # Add week column and generate new IDs for edited tasks
     if not edited_df.empty:
@@ -107,10 +123,10 @@ if st.button("💾 Save Changes", type="primary"):
         # Reorder columns
         new_week_tasks = new_week_tasks[["id", "week", "team_member", "label", "description", "status"]]
 
-        # Combine with other weeks' tasks
-        st.session_state.all_tasks = pd.concat([other_tasks, new_week_tasks], ignore_index=True)
+        # Combine: other weeks + other members this week + edited tasks
+        st.session_state.all_tasks = pd.concat([other_weeks_tasks, other_members_tasks, new_week_tasks], ignore_index=True)
     else:
-        st.session_state.all_tasks = other_tasks
+        st.session_state.all_tasks = pd.concat([other_weeks_tasks, other_members_tasks], ignore_index=True)
 
     # Save to file
     st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)

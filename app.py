@@ -352,19 +352,6 @@ team_members = pd.read_csv(TEAM_FILE)["name"].tolist()
 # Status options
 STATUS_OPTIONS = ["To be started", "In progress", "Done"]
 
-# Status colors
-def get_status_color(status):
-    colors = {{
-        "To be started": "#cc0000",
-        "In progress": "#b8860b",
-        "Done": "#228b22"
-    }}
-    return colors.get(status, "#808080")
-
-def render_status(status):
-    color = get_status_color(status)
-    return f'<span style="color: {{color}}; font-weight: bold;">{{status}}</span>'
-
 # Load existing tasks
 if TASKS_FILE.exists():
     all_tasks = pd.read_csv(TASKS_FILE)
@@ -384,102 +371,82 @@ st.markdown("---")
 # Get tasks for this week
 week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].copy()
 
-# Display tasks table
+# Display editable tasks table
 st.subheader("📋 Tasks")
+st.caption("Edit cells directly • Click ➕ to add rows • Select rows and press Delete to remove")
 
+# Prepare display dataframe
 if not week_tasks.empty:
-    # Build HTML table
-    html = '<table style="width:100%; border-collapse: collapse;">'
-    html += '<tr style="background-color: #f0f2f6;">'
-    html += '<th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Team Member</th>'
-    html += '<th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Label</th>'
-    html += '<th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Description</th>'
-    html += '<th style="padding: 8px; text-align: left; border-bottom: 2px solid #ddd;">Status</th>'
-    html += '</tr>'
-
-    for _, row in week_tasks.iterrows():
-        html += '<tr>'
-        html += f'<td style="padding: 8px; border-bottom: 1px solid #ddd;">{{row["team_member"]}}</td>'
-        html += f'<td style="padding: 8px; border-bottom: 1px solid #ddd;">{{row["label"]}}</td>'
-        html += f'<td style="padding: 8px; border-bottom: 1px solid #ddd;">{{row["description"]}}</td>'
-        html += f'<td style="padding: 8px; border-bottom: 1px solid #ddd;">{{render_status(row["status"])}}</td>'
-        html += '</tr>'
-
-    html += '</table>'
-    st.markdown(html, unsafe_allow_html=True)
+    display_df = week_tasks[["team_member", "label", "description", "status"]].copy()
 else:
-    st.info("No tasks for this week yet.")
+    display_df = pd.DataFrame(columns=["team_member", "label", "description", "status"])
+
+# Configure columns for the data editor
+column_config = {{
+    "team_member": st.column_config.SelectboxColumn(
+        "Team Member",
+        options=team_members,
+        required=True,
+        width="medium"
+    ),
+    "label": st.column_config.TextColumn(
+        "Label",
+        required=True,
+        width="medium"
+    ),
+    "description": st.column_config.TextColumn(
+        "Description",
+        required=True,
+        width="large"
+    ),
+    "status": st.column_config.SelectboxColumn(
+        "Status",
+        options=STATUS_OPTIONS,
+        required=True,
+        width="medium"
+    )
+}}
+
+# Editable table
+edited_df = st.data_editor(
+    display_df,
+    column_config=column_config,
+    num_rows="dynamic",
+    use_container_width=True,
+    hide_index=True,
+    key="task_editor"
+)
 
 st.markdown("---")
 
-# Use expanders for a cleaner interface
-with st.expander("➕ Add New Task", expanded=False):
-    with st.form("add_task_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            new_member = st.selectbox("Team Member", options=team_members, key="add_member")
-            new_label = st.text_input("Label", key="add_label")
-        with col2:
-            new_status = st.selectbox("Status", options=STATUS_OPTIONS, key="add_status")
-            new_desc = st.text_input("Description", key="add_desc")
+# Save button
+if st.button("💾 Save Changes", type="primary"):
+    # Remove this week's tasks from all_tasks
+    other_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] != WEEK_NUM].copy()
 
-        if st.form_submit_button("➕ Add Task"):
-            if new_label and new_desc:
-                new_id = st.session_state.all_tasks["id"].max() + 1 if not st.session_state.all_tasks.empty else 1
-                new_task = pd.DataFrame({{
-                    "id": [new_id],
-                    "week": [WEEK_NUM],
-                    "team_member": [new_member],
-                    "label": [new_label],
-                    "description": [new_desc],
-                    "status": [new_status]
-                }})
-                st.session_state.all_tasks = pd.concat([st.session_state.all_tasks, new_task], ignore_index=True)
-                st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
-                st.success("Task added!")
-                st.experimental_rerun()
-            else:
-                st.warning("Please fill in Label and Description")
+    # Add week column and generate new IDs for edited tasks
+    if not edited_df.empty:
+        new_week_tasks = edited_df.copy()
+        new_week_tasks["week"] = WEEK_NUM
 
-if not week_tasks.empty:
-    with st.expander("✏️ Edit Task", expanded=False):
-        # Select task to edit
-        task_options = {{f"{{row['team_member']}} - {{row['label']}}: {{row['description'][:30]}}...": row['id']
-                       for _, row in week_tasks.iterrows()}}
-        selected_task_name = st.selectbox("Select task to edit", options=list(task_options.keys()))
-        selected_task_id = task_options[selected_task_name]
-        selected_task = week_tasks[week_tasks["id"] == selected_task_id].iloc[0]
+        # Generate new IDs
+        max_id = st.session_state.all_tasks["id"].max() if not st.session_state.all_tasks.empty else 0
+        if pd.isna(max_id):
+            max_id = 0
+        new_week_tasks["id"] = range(int(max_id) + 1, int(max_id) + 1 + len(new_week_tasks))
 
-        with st.form("edit_task_form"):
-            col1, col2 = st.columns(2)
-            with col1:
-                edit_member = st.selectbox("Team Member", options=team_members,
-                                          index=team_members.index(selected_task["team_member"]))
-                edit_label = st.text_input("Label", value=selected_task["label"])
-            with col2:
-                edit_status = st.selectbox("Status", options=STATUS_OPTIONS,
-                                          index=STATUS_OPTIONS.index(selected_task["status"]))
-                edit_desc = st.text_input("Description", value=selected_task["description"])
+        # Reorder columns
+        new_week_tasks = new_week_tasks[["id", "week", "team_member", "label", "description", "status"]]
 
-            if st.form_submit_button("💾 Save Changes"):
-                mask = st.session_state.all_tasks["id"] == selected_task_id
-                st.session_state.all_tasks.loc[mask, "team_member"] = edit_member
-                st.session_state.all_tasks.loc[mask, "label"] = edit_label
-                st.session_state.all_tasks.loc[mask, "description"] = edit_desc
-                st.session_state.all_tasks.loc[mask, "status"] = edit_status
-                st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
-                st.success("Task updated!")
-                st.experimental_rerun()
+        # Combine with other weeks' tasks
+        st.session_state.all_tasks = pd.concat([other_tasks, new_week_tasks], ignore_index=True)
+    else:
+        st.session_state.all_tasks = other_tasks
 
-    with st.expander("🗑️ Delete Task", expanded=False):
-        delete_task_name = st.selectbox("Select task to delete", options=list(task_options.keys()), key="delete_select")
-        delete_task_id = task_options[delete_task_name]
-
-        if st.button("🗑️ Delete Task"):
-            st.session_state.all_tasks = st.session_state.all_tasks[st.session_state.all_tasks["id"] != delete_task_id]
-            st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
-            st.success("Task deleted!")
-            st.experimental_rerun()
+    # Save to file
+    st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
+    st.success("Tasks saved!")
+    st.rerun()
 '''
 
         page_file = PAGES_DIR / f"Week_{week_to_create:02d}.py"

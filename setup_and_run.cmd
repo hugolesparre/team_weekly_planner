@@ -36,7 +36,7 @@ REM Install/upgrade dependencies
 echo.
 echo Installing dependencies...
 pip install --upgrade pip
-pip install streamlit==1.28.0 pandas fpdf2
+pip install streamlit==1.52.0 pandas fpdf2
 
 echo.
 echo ========================================

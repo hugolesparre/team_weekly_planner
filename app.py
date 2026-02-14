@@ -38,7 +38,7 @@ def get_status_color_rgb(status):
     return colors.get(status, (0, 0, 0))
 
 
-def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, progress_pct):
+def generate_weekly_pdf(week_num, team_members, weeks_passed, weeks_remaining, progress_pct):
     """Generate PDF report for a given week."""
     DATA_DIR = Path(__file__).parent / "data"
     TASKS_FILE = DATA_DIR / "weekly_tasks.csv"
@@ -66,7 +66,7 @@ def generate_weekly_pdf(week_num, team_members, days_passed, days_remaining, pro
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, "Year Progress", ln=True)
     pdf.set_font("Arial", "", 12)
-    pdf.cell(0, 8, f"Days Passed: {days_passed} | Days Remaining: {days_remaining} | Progress: {progress_pct:.1f}%", ln=True)
+    pdf.cell(0, 8, f"Weeks Passed: {weeks_passed} | Weeks Remaining: {weeks_remaining} | Progress: {progress_pct:.1f}%", ln=True)
 
     # Draw progress bar
     bar_width = 170
@@ -248,31 +248,31 @@ st.markdown("---")
 # Progress overview section
 st.header("📊 Year Progress")
 
-# Calculate days passed and remaining
-start_of_year = datetime(2026, 1, 1)
-end_of_year = datetime(2026, 12, 31)
+# Calculate weeks passed and remaining (based on current week number)
 today = datetime.now()
+current_week = today.isocalendar()[1]  # ISO week number (1-52/53)
+total_weeks = 52
 
-if today < start_of_year:
-    days_passed = 0
-    days_remaining = 365
-elif today > end_of_year:
-    days_passed = 365
-    days_remaining = 0
+if today.year < 2026:
+    weeks_passed = 0
+    weeks_remaining = total_weeks
+elif today.year > 2026:
+    weeks_passed = total_weeks
+    weeks_remaining = 0
 else:
-    days_passed = (today - start_of_year).days
-    days_remaining = (end_of_year - today).days
+    weeks_passed = current_week
+    weeks_remaining = total_weeks - current_week
 
-progress_percentage = (days_passed / 365) * 100
+progress_percentage = (weeks_passed / total_weeks) * 100
 
 # Display progress
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric("Days Passed", days_passed)
+    st.metric("Weeks Passed", weeks_passed)
 
 with col2:
-    st.metric("Days Remaining", days_remaining)
+    st.metric("Weeks Remaining", weeks_remaining)
 
 with col3:
     st.metric("Year Progress", f"{progress_percentage:.1f}%")
@@ -502,8 +502,8 @@ else:
                 pdf_bytes = generate_weekly_pdf(
                     week_num=report_week,
                     team_members=team_members,
-                    days_passed=days_passed,
-                    days_remaining=days_remaining,
+                    weeks_passed=weeks_passed,
+                    weeks_remaining=weeks_remaining,
                     progress_pct=progress_percentage
                 )
                 st.download_button(

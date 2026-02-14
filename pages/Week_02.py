@@ -24,9 +24,9 @@ STATUS_OPTIONS = ["To be started", "In progress", "Done"]
 # Status colors
 def get_status_color(status):
     colors = {
-        "To be started": "#cc0000",   # Red
-        "In progress": "#b8860b",      # Dark yellow/gold
-        "Done": "#228b22"              # Green
+        "To be started": "#cc0000",
+        "In progress": "#b8860b",
+        "Done": "#228b22"
     }
     return colors.get(status, "#808080")
 
@@ -51,16 +51,10 @@ st.title(f"📅 Week {WEEK_NUM} Tasks")
 st.markdown("---")
 
 # Get tasks for this week
-week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].sort_values(["team_member", "label"])
+week_tasks = st.session_state.all_tasks[st.session_state.all_tasks["week"] == WEEK_NUM].copy()
 
-# Display tasks table with colored status
+# Display tasks table
 st.subheader("📋 Tasks")
-
-# Filter by team member
-filter_options = ["All"] + team_members
-selected_filter = st.selectbox("Filter by Team Member", options=filter_options, key="task_filter")
-if selected_filter != "All":
-    week_tasks = week_tasks[week_tasks["team_member"] == selected_filter]
 
 if not week_tasks.empty:
     # Build HTML table
@@ -87,76 +81,71 @@ else:
 
 st.markdown("---")
 
-# Add task form
-st.subheader("➕ Add Task")
-with st.form("add_task_form"):
-    col1, col2 = st.columns(2)
-    with col1:
-        task_member = st.selectbox("Team Member", options=team_members)
-        task_label = st.text_input("Label")
-    with col2:
-        task_status = st.selectbox("Status", options=STATUS_OPTIONS)
-        task_desc = st.text_input("Description")
-
-    if st.form_submit_button("➕ Add Task"):
-        # Generate new ID
-        new_id = st.session_state.all_tasks["id"].max() + 1 if not st.session_state.all_tasks.empty else 1
-        new_task = pd.DataFrame({
-            "id": [new_id],
-            "week": [WEEK_NUM],
-            "team_member": [task_member],
-            "label": [task_label],
-            "description": [task_desc],
-            "status": [task_status]
-        })
-        st.session_state.all_tasks = pd.concat([st.session_state.all_tasks, new_task], ignore_index=True)
-        st.experimental_rerun()
-
-st.markdown("---")
-
-# Update status
-if not week_tasks.empty:
-    st.subheader("✏️ Update Status")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        update_member = st.selectbox("Team Member", options=team_members, key="update_member")
-    filtered_update = week_tasks[week_tasks["team_member"] == update_member]
-    if not filtered_update.empty:
-        task_options = {f"{row['label']} - {row['description'][:30]}..." if len(str(row['description'])) > 30 else f"{row['label']} - {row['description']}": row['id'] for _, row in filtered_update.iterrows()}
+# Use expanders for a cleaner interface
+with st.expander("➕ Add New Task", expanded=False):
+    with st.form("add_task_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            new_member = st.selectbox("Team Member", options=team_members, key="add_member")
+            new_label = st.text_input("Label", key="add_label")
         with col2:
-            task_to_update = st.selectbox("Select task", options=list(task_options.keys()), key="update_task")
-        with col3:
-            new_status = st.selectbox("New status", options=STATUS_OPTIONS, key="new_status")
-        if st.button("✏️ Update Status"):
-            task_id = task_options[task_to_update]
-            st.session_state.all_tasks.loc[st.session_state.all_tasks["id"] == task_id, "status"] = new_status
-            st.experimental_rerun()
-    else:
-        st.info(f"No tasks for {update_member} this week.")
+            new_status = st.selectbox("Status", options=STATUS_OPTIONS, key="add_status")
+            new_desc = st.text_input("Description", key="add_desc")
 
-st.markdown("---")
+        if st.form_submit_button("➕ Add Task"):
+            if new_label and new_desc:
+                new_id = st.session_state.all_tasks["id"].max() + 1 if not st.session_state.all_tasks.empty else 1
+                new_task = pd.DataFrame({
+                    "id": [new_id],
+                    "week": [WEEK_NUM],
+                    "team_member": [new_member],
+                    "label": [new_label],
+                    "description": [new_desc],
+                    "status": [new_status]
+                })
+                st.session_state.all_tasks = pd.concat([st.session_state.all_tasks, new_task], ignore_index=True)
+                st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
+                st.success("Task added!")
+                st.experimental_rerun()
+            else:
+                st.warning("Please fill in Label and Description")
 
-# Delete task
 if not week_tasks.empty:
-    st.subheader("🗑️ Delete Task")
-    col1, col2 = st.columns(2)
-    with col1:
-        delete_member = st.selectbox("Team Member", options=team_members, key="delete_member")
-    filtered_delete = week_tasks[week_tasks["team_member"] == delete_member]
-    if not filtered_delete.empty:
-        delete_options = {f"{row['label']} - {row['description'][:30]}..." if len(str(row['description'])) > 30 else f"{row['label']} - {row['description']}": row['id'] for _, row in filtered_delete.iterrows()}
-        with col2:
-            task_display = st.selectbox("Select task to delete", options=list(delete_options.keys()))
+    with st.expander("✏️ Edit Task", expanded=False):
+        # Select task to edit
+        task_options = {f"{row['team_member']} - {row['label']}: {row['description'][:30]}...": row['id']
+                       for _, row in week_tasks.iterrows()}
+        selected_task_name = st.selectbox("Select task to edit", options=list(task_options.keys()))
+        selected_task_id = task_options[selected_task_name]
+        selected_task = week_tasks[week_tasks["id"] == selected_task_id].iloc[0]
+
+        with st.form("edit_task_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                edit_member = st.selectbox("Team Member", options=team_members,
+                                          index=team_members.index(selected_task["team_member"]))
+                edit_label = st.text_input("Label", value=selected_task["label"])
+            with col2:
+                edit_status = st.selectbox("Status", options=STATUS_OPTIONS,
+                                          index=STATUS_OPTIONS.index(selected_task["status"]))
+                edit_desc = st.text_input("Description", value=selected_task["description"])
+
+            if st.form_submit_button("💾 Save Changes"):
+                mask = st.session_state.all_tasks["id"] == selected_task_id
+                st.session_state.all_tasks.loc[mask, "team_member"] = edit_member
+                st.session_state.all_tasks.loc[mask, "label"] = edit_label
+                st.session_state.all_tasks.loc[mask, "description"] = edit_desc
+                st.session_state.all_tasks.loc[mask, "status"] = edit_status
+                st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
+                st.success("Task updated!")
+                st.experimental_rerun()
+
+    with st.expander("🗑️ Delete Task", expanded=False):
+        delete_task_name = st.selectbox("Select task to delete", options=list(task_options.keys()), key="delete_select")
+        delete_task_id = task_options[delete_task_name]
+
         if st.button("🗑️ Delete Task"):
-            task_id = delete_options[task_display]
-            st.session_state.all_tasks = st.session_state.all_tasks[st.session_state.all_tasks["id"] != task_id]
+            st.session_state.all_tasks = st.session_state.all_tasks[st.session_state.all_tasks["id"] != delete_task_id]
+            st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
+            st.success("Task deleted!")
             st.experimental_rerun()
-    else:
-        st.info(f"No tasks for {delete_member} this week.")
-
-st.markdown("---")
-
-# Save button
-if st.button("💾 Save Changes"):
-    st.session_state.all_tasks.to_csv(TASKS_FILE, index=False)
-    st.success("Tasks saved!")

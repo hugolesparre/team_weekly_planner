@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from datetime import date, timedelta
+import re
 
 st.set_page_config(
     page_title="Daily Support",
@@ -52,8 +53,13 @@ def get_week_dates(year, week_num):
 # --- CALENDAR VIEW (BY WEEK) ---
 st.subheader("📆 Week View")
 
+# Find the last week page available to use as default
+PAGES_DIR = Path(__file__).parent
+week_numbers = [int(m.group(1)) for f in PAGES_DIR.glob("Week_*.py") if (m := re.match(r"Week_(\d+)", f.stem))]
+default_week = max(week_numbers) if week_numbers else 1
+
 # Week selector
-selected_week = st.selectbox("Select Week", options=list(range(1, 53)), index=0, format_func=lambda x: f"Week {x}")
+selected_week = st.selectbox("Select Week", options=list(range(1, 53)), index=default_week - 1, format_func=lambda x: f"Week {x}")
 
 # Get weekdays for selected week
 week_dates = get_week_dates(2026, selected_week)

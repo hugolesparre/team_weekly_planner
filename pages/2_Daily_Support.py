@@ -88,9 +88,9 @@ st.subheader("➕ Add Support (Date Range)")
 with st.form("add_range_form"):
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("Start Date", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=date(2026, 1, 1))
+        start_date = st.date_input("Start Date", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=week_dates[0])
     with col2:
-        end_date = st.date_input("End Date", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=date(2026, 1, 1))
+        end_date = st.date_input("End Date", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=week_dates[-1])
 
     col3, col4 = st.columns(2)
     with col3:
@@ -120,29 +120,9 @@ with st.form("add_range_form"):
                 current_date += timedelta(days=1)
 
             st.session_state.daily_df = st.session_state.daily_df.sort_values("date").reset_index(drop=True)
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("End date must be after start date")
-
-st.markdown("---")
-
-# --- DELETE SECTION ---
-if not st.session_state.daily_df.empty:
-    st.subheader("🗑️ Delete Days")
-
-    col1, col2 = st.columns(2)
-    with col1:
-        delete_start = st.date_input("Delete from", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=date(2026, 1, 1), key="del_start")
-    with col2:
-        delete_end = st.date_input("Delete to", min_value=date(2026, 1, 1), max_value=date(2026, 12, 31), value=date(2026, 1, 1), key="del_end")
-
-    if st.button("🗑️ Delete Date Range"):
-        current_date = delete_start
-        while current_date <= delete_end:
-            date_str = current_date.strftime("%Y-%m-%d")
-            st.session_state.daily_df = st.session_state.daily_df[st.session_state.daily_df["date"] != date_str]
-            current_date += timedelta(days=1)
-        st.experimental_rerun()
 
 st.markdown("---")
 

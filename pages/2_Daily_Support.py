@@ -164,10 +164,20 @@ stats_data = []
 for member in team_members:
     primary_count = (st.session_state.daily_df["primary_support"] == member).sum()
     secondary_count = (st.session_state.daily_df["secondary_support"] == member).sum()
+
+    # Find days since last primary support
+    member_primary = st.session_state.daily_df[st.session_state.daily_df["primary_support"] == member]
+    if not member_primary.empty:
+        last_date = pd.to_datetime(member_primary["date"]).max()
+        days_since = (pd.Timestamp.now() - last_date).days
+    else:
+        days_since = "-"
+
     stats_data.append({
         "Team Member": member,
         "Primary Owner (days)": int(primary_count),
-        "Secondary Owner (days)": int(secondary_count)
+        "Secondary Owner (days)": int(secondary_count),
+        "Days Since Last Support": days_since
     })
 
 stats_df = pd.DataFrame(stats_data)
